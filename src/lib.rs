@@ -1,11 +1,14 @@
-use tokio::fs;
-use tokio::io::AsyncReadExt;
-use std::path::Path;
+use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::Deserialize;
+use std::path::Path;
+use tokio::fs;
 use tokio::fs::File;
-use tokio_tungstenite::{connect_async, tungstenite::{self, Message}};
-use futures::{SinkExt, StreamExt};
+use tokio::io::AsyncReadExt;
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{self, Message},
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,5 +84,23 @@ pub async fn upload(file_path: &str) -> Result<(String, String), Box<dyn std::er
         }))
         .await?;
 
-    Ok((create_response.file_identifier, create_response.deletion_token))
+    Ok((
+        create_response.file_identifier,
+        create_response.deletion_token,
+    ))
+}
+
+pub async fn delete(identifier: &str, deltoken: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+    let delete_url = format!(
+        "https://streamshare.wireway.ch/api/delete/{}/{}",
+        identifier, deltoken
+    );
+
+    let res = client.delete(&delete_url).send().await?;
+    if res.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("Failed to delete file: {}", res.status()).into())
+    }
 }

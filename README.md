@@ -4,6 +4,7 @@ Upload files to [streamshare](https://streamshare.wireway.ch)
 
 #### Example:
 
+Upload:
 ```rust
 match upload(&file_path).await {
     Ok((file_identifier, _deletion_token)) => {
@@ -16,5 +17,13 @@ match upload(&file_path).await {
         println!("Download URL: {}", download_url);
     }
     Err(e) => eprintln!("Error: {}", e),
+}
+```
+
+Delete:
+```rust
+match streamshare::delete(identifier, deltoken).await {
+    Ok(_) => println!("File deleted successfully"),
+    Err(e) => eprintln!("Error deleting file: {}", e),
 }
 ```
