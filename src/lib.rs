@@ -90,11 +90,11 @@ pub async fn upload(file_path: &str) -> Result<(String, String), Box<dyn std::er
     ))
 }
 
-pub async fn delete(identifier: &str, deltoken: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn delete(file_identifier: &str, deletion_token: &str) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let delete_url = format!(
         "https://streamshare.wireway.ch/api/delete/{}/{}",
-        identifier, deltoken
+        file_identifier, deletion_token
     );
 
     let res = client.delete(&delete_url).send().await?;
