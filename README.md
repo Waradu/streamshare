@@ -22,7 +22,7 @@ match upload(&file_path).await {
 
 Delete:
 ```rust
-match streamshare::delete(file_identifier deletion_token).await {
+match streamshare::delete(file_identifier, deletion_token).await {
     Ok(_) => println!("File deleted successfully"),
     Err(e) => eprintln!("Error deleting file: {}", e),
 }
