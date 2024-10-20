@@ -6,7 +6,8 @@ Upload files to [streamshare](https://streamshare.wireway.ch)
 
 Upload:
 ```rust
-match upload(&file_path).await {
+let show_progress = true;
+match upload(&file_path, show_progress).await {
     Ok((file_identifier, _deletion_token)) => {
         let download_url = format!(
             "https://streamshare.wireway.ch/download/{}",
