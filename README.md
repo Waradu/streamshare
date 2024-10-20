@@ -7,6 +7,8 @@ Upload files to [streamshare](https://streamshare.wireway.ch)
 Upload:
 
 ```rust
+let client = StreamShare::default();
+
 let callback = |uploaded_bytes, total_bytes| {
     println!(
         "Uploaded {}b of {}b",
@@ -15,7 +17,7 @@ let callback = |uploaded_bytes, total_bytes| {
     );
 }
 
-match upload(&file_path, callback).await {
+match client.upload(&file_path, callback).await {
     Ok((file_identifier, _deletion_token)) => {
         let download_url = format!(
             "https://streamshare.wireway.ch/download/{}",
@@ -32,7 +34,9 @@ match upload(&file_path, callback).await {
 Delete:
 
 ```rust
-match streamshare::delete(file_identifier, deletion_token).await {
+let client = StreamShare::default();
+
+match client.delete(file_identifier, deletion_token).await {
     Ok(_) => println!("File deleted successfully"),
     Err(e) => eprintln!("Error deleting file: {}", e),
 }
