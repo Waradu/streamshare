@@ -1,7 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::Deserialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::{fs, io::AsyncWriteExt};
@@ -132,6 +132,7 @@ impl StreamShare {
         &self,
         file_identifier: &str,
         download_path: &str,
+        replace: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let res = self
             .client
@@ -153,30 +154,63 @@ impl StreamShare {
                 header_value.split(';').find_map(|part| {
                     let trimmed = part.trim();
                     if trimmed.starts_with("filename=") {
-                        Some(trimmed.trim_start_matches("filename=").trim_matches('"'))
+                        Some(
+                            trimmed
+                                .trim_start_matches("filename=")
+                                .trim_matches('"')
+                                .to_string(),
+                        )
                     } else {
                         None
                     }
                 })
             })
-            .unwrap_or(unknown.as_str());
+            .unwrap_or_else(|| unknown.clone());
 
-        let file_path = {
-            let path = Path::new(download_path);
-            if path.as_os_str().is_empty() {
-                Path::new("").join(file_name)
-            } else if path.is_dir() {
-                path.join(file_name)
+        let expanded_path = shellexpand::tilde(download_path);
+        let path = Path::new(&*expanded_path);
+
+        let file_path = if path.as_os_str().is_empty() {
+            PathBuf::from(&file_name)
+        } else if path.exists() {
+            if path.is_dir() {
+                path.join(&file_name)
+            } else if path.is_file() {
+                path.to_path_buf()
+            } else {
+                return Err(format!(
+                    "Path exists but is neither a file nor a directory: {}",
+                    path.display()
+                )
+                .into());
+            }
+        } else {
+            if let Some(parent) = path.parent() {
+                if parent.exists() && parent.is_dir() {
+                    path.to_path_buf()
+                } else {
+                    return Err(format!(
+                        "Parent directory does not exist or is not a directory: {}",
+                        parent.display()
+                    )
+                    .into());
+                }
             } else {
                 path.to_path_buf()
             }
         };
 
-        if file_path.exists() {
+        if file_path.exists() && !replace {
             return Err(format!("File already exists: {}", file_path.display()).into());
         }
 
-        let mut file = File::create(file_path).await?;
+        if let Some(parent) = file_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent).await?;
+            }
+        }
+
+        let mut file = File::create(&file_path).await?;
         let content = res.bytes().await?;
 
         file.write_all(&content).await?;

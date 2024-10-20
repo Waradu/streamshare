@@ -47,7 +47,7 @@ Download:
 ```rust
 let client = StreamShare::default();
 
-match client.download(file_identifier, path).await {
+match client.download(file_identifier, path, replace).await {
     Ok(_) => println!("File downloaded successfully"),
     Err(e) => eprintln!("Error downloaded file: {}", e),
 }
