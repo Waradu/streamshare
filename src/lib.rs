@@ -1,7 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::Deserialize;
-use std::{io::Write, path::Path, time::Instant};
+use std::path::Path;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -17,7 +17,10 @@ struct CreateResponse {
     deletion_token: String,
 }
 
-pub async fn upload(file_path: &str, show_progress: bool) -> Result<(String, String), Box<dyn std::error::Error>> {
+pub async fn upload<F>(file_path: &str, mut callback: F) -> Result<(String, String), Box<dyn std::error::Error>> 
+where 
+    F: FnMut(u64, u64)
+{
     let path = Path::new(file_path);
     let metadata = fs::metadata(path).await?;
     if !metadata.is_file() {
@@ -51,10 +54,9 @@ pub async fn upload(file_path: &str, show_progress: bool) -> Result<(String, Str
     let (mut ws_stream, _) = connect_async(ws_url).await?;
 
     let mut file = File::open(path).await?;
-    const CHUNK_SIZE: usize = 512 * 1024;
+    const CHUNK_SIZE: usize = 1024 * 1024;
     let mut buffer = vec![0u8; CHUNK_SIZE];
     let mut uploaded: u64 = 0;
-    let start_time = Instant::now();
 
     loop {
         let n = file.read(&mut buffer).await?;
@@ -67,19 +69,7 @@ pub async fn upload(file_path: &str, show_progress: bool) -> Result<(String, Str
         ws_stream.send(Message::Binary(chunk.to_vec())).await?;
         uploaded += n as u64;
 
-        if show_progress {
-            let percentage = (uploaded as f64 / file_size as f64) * 100.0;
-            let uploaded_mb = bytes_to_human_readable(uploaded);
-            let total_mb = bytes_to_human_readable(file_size);
-            let elapsed_secs = start_time.elapsed().as_secs_f64();
-            let speed = bytes_to_human_readable((uploaded as f64 / elapsed_secs) as u64);
-    
-            print!(
-                "\r\x1b[2K{:.2}% {}/{} ({}/s)",
-                percentage, uploaded_mb, total_mb, speed
-            );
-            std::io::stdout().flush().unwrap();
-        }
+        callback(uploaded, file_size);
 
         match ws_stream.next().await {
             Some(Ok(Message::Text(text))) if text == "ACK" => (),
@@ -89,15 +79,6 @@ pub async fn upload(file_path: &str, show_progress: bool) -> Result<(String, Str
             Some(Err(e)) => return Err(format!("WebSocket error: {}", e).into()),
             None => return Err("WebSocket closed unexpectedly".into()),
         }
-    }
-
-    if show_progress {
-        println!(
-            "\r\x1b[2K100.00% {}/{} (Upload complete)",
-            bytes_to_human_readable(file_size),
-            bytes_to_human_readable(file_size)
-        );
-        println!();
     }
 
     ws_stream
@@ -128,21 +109,5 @@ pub async fn delete(
         Ok(())
     } else {
         Err(format!("Failed to delete file: {}", res.status()).into())
-    }
-}
-
-fn bytes_to_human_readable(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    const MB: f64 = KB * 1024.0;
-    const GB: f64 = MB * 1024.0;
-
-    if bytes as f64 >= GB {
-        format!("{:.2}gb", bytes as f64 / GB)
-    } else if bytes as f64 >= MB {
-        format!("{:.2}mb", bytes as f64 / MB)
-    } else if bytes as f64 >= KB {
-        format!("{:.2}kb", bytes as f64 / KB)
-    } else {
-        format!("{}b", bytes)
     }
 }
