@@ -1,4 +1,4 @@
-# Streamshare
+# Streamshare (official)
 
 Upload files to [streamshare](https://streamshare.wireway.ch)
 
