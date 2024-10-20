@@ -2,9 +2,9 @@ use futures::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde::Deserialize;
 use std::path::Path;
-use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::{fs, io::AsyncWriteExt};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{self, Message},
@@ -126,6 +126,61 @@ impl StreamShare {
         } else {
             Err(format!("Failed to delete file: {}", res.status()).into())
         }
+    }
+
+    pub async fn download(
+        &self,
+        file_identifier: &str,
+        download_path: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let res = self
+            .client
+            .get(format!(
+                "https://{}/download/{}",
+                self.server_url, file_identifier
+            ))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let unknown = format!("{}.unknown", file_identifier);
+
+        let file_name = res
+            .headers()
+            .get("content-disposition")
+            .and_then(|header| header.to_str().ok())
+            .and_then(|header_value| {
+                header_value.split(';').find_map(|part| {
+                    let trimmed = part.trim();
+                    if trimmed.starts_with("filename=") {
+                        Some(trimmed.trim_start_matches("filename=").trim_matches('"'))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or(unknown.as_str());
+
+        let file_path = {
+            let path = Path::new(download_path);
+            if path.as_os_str().is_empty() {
+                Path::new("").join(file_name)
+            } else if path.is_dir() {
+                path.join(file_name)
+            } else {
+                path.to_path_buf()
+            }
+        };
+
+        if file_path.exists() {
+            return Err(format!("File already exists: {}", file_path.display()).into());
+        }
+
+        let mut file = File::create(file_path).await?;
+        let content = res.bytes().await?;
+
+        file.write_all(&content).await?;
+        Ok(())
     }
 }
 

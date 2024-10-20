@@ -42,4 +42,15 @@ match client.delete(file_identifier, deletion_token).await {
 }
 ```
 
+Download:
+
+```rust
+let client = StreamShare::default();
+
+match client.download(file_identifier, path).await {
+    Ok(_) => println!("File downloaded successfully"),
+    Err(e) => eprintln!("Error downloaded file: {}", e),
+}
+```
+
 Check [toss](https://github.com/Waradu/to-streamshare) for a better example on how to use it.
